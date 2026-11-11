@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { validate } from '@tma.js/init-data-node';
+import crypto from 'crypto';
 import db from './db.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -14,13 +14,32 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '64kb' }));
 
+// Ручная проверка подписи Telegram (без внешних библиотек)
 function authMiddleware(req, res, next) {
   try {
     const raw = req.headers['x-init-data'];
     if (!raw) return res.status(401).json({ error: 'no_init_data' });
-    const initData = validate(raw, BOT_TOKEN, { expiresIn: 3600 });
-    req.tgUser = initData.user;
-    if (!req.tgUser) return res.status(401).json({ error: 'no_user' });
+
+    const urlParams = new URLSearchParams(raw);
+    const hash = urlParams.get('hash');
+    if (!hash) return res.status(401).json({ error: 'no_hash' });
+
+    urlParams.delete('hash');
+    const dataCheckString = Array.from(urlParams.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n');
+
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    if (calculatedHash !== hash) {
+      return res.status(401).json({ error: 'invalid_init_data' });
+    }
+
+    const userStr = urlParams.get('user');
+    if (!userStr) return res.status(401).json({ error: 'no_user' });
+    req.tgUser = JSON.parse(userStr);
     next();
   } catch (e) {
     return res.status(401).json({ error: 'invalid_init_data' });
@@ -95,7 +114,7 @@ app.get('/leaderboard', (req, res) => {
   res.json(rows.map((r, i) => ({ rank: i + 1, name: r.first_name || r.username || 'Игрок', value: r.best_value })));
 });
 
-/* ---------- АДМИНКА: создание промокодов ---------- */
+// Админка
 app.post('/admin/promo/create', adminMiddleware, (req, res) => {
   const { code, reward, maxUses } = req.body || {};
   if (!code || !reward) return res.status(400).json({ error: 'bad_input' });
@@ -122,7 +141,7 @@ app.delete('/admin/promo/:code', adminMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-/* ---------- Стартовые промокоды ---------- */
+// Стартовые промокоды
 const DEFAULT_PROMOS = [
   ['WELCOME',   { type: 'money', amount: 25000 }, 1000],
   ['TG2025',    { type: 'money', amount: 50000 }, 100],
