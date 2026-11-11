@@ -1,37 +1,46 @@
-import Database from 'better-sqlite3';
+import pkg from 'pg';
+const { Pool } = pkg;
 
-const db = new Database('game.db');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // Обязательно для Supabase
+});
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS players (
-    user_id    INTEGER PRIMARY KEY,
-    first_name TEXT,
-    username   TEXT,
-    money      INTEGER DEFAULT 50000,
-    best_value INTEGER DEFAULT 0,
-    best_plate TEXT,
-    collection TEXT DEFAULT '[]',
-    updated_at INTEGER DEFAULT 0
-  );
-`);
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS players (
+      user_id    BIGINT PRIMARY KEY,
+      first_name TEXT,
+      username   TEXT,
+      money      INTEGER DEFAULT 50000,
+      best_value INTEGER DEFAULT 0,
+      best_plate TEXT,
+      collection TEXT DEFAULT '[]',
+      updated_at BIGINT DEFAULT 0
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS promos (
+      code       TEXT PRIMARY KEY,
+      reward     TEXT NOT NULL,
+      max_uses   INTEGER DEFAULT 1,
+      used_count INTEGER DEFAULT 0,
+      created_at BIGINT DEFAULT 0
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS promo_uses (
+      code    TEXT NOT NULL,
+      user_id BIGINT NOT NULL,
+      used_at BIGINT NOT NULL,
+      PRIMARY KEY (code, user_id)
+    );
+  `);
+  console.log('✅ Database initialized');
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS promos (
-    code       TEXT PRIMARY KEY,
-    reward     TEXT NOT NULL,
-    max_uses   INTEGER DEFAULT 1,
-    used_count INTEGER DEFAULT 0,
-    created_at INTEGER DEFAULT 0
-  );
-`);
+initDB();
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS promo_uses (
-    code    TEXT NOT NULL,
-    user_id INTEGER NOT NULL,
-    used_at INTEGER NOT NULL,
-    PRIMARY KEY (code, user_id)
-  );
-`);
-
-export default db;
+export default {
+  query: (text, params) => pool.query(text, params),
+};
