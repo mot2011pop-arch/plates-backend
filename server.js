@@ -58,7 +58,7 @@ app.post('/load', authMiddleware, async (req, res) => {
     if (!player) {
       await db.query(
         `INSERT INTO players (user_id, first_name, username, money, best_value, best_plate, collection, updated_at) 
-         VALUES ($1, $2, $3, 50000, 0, NULL, '[]', $4)`,
+         VALUES ($1, $2, $3, 5000, 0, NULL, '[]', $4)`, // <--- Стартовый баланс изменён на 5000
         [userId, req.tgUser.first_name || '', req.tgUser.username || '', Date.now()]
       );
       result = await db.query('SELECT * FROM players WHERE user_id = $1', [userId]);
@@ -165,10 +165,11 @@ app.delete('/admin/promo/:code', adminMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'db_error' }); }
 });
 
+// Сбалансированные стартовые промокоды
 const DEFAULT_PROMOS = [
-  ['WELCOME',   { type: 'money', amount: 25000 }, 1000],
-  ['TG2025',    { type: 'money', amount: 50000 }, 100],
-  ['LUCKY777',  { type: 'money', amount: 77777 }, 50],
+  ['WELCOME',   { type: 'money', amount: 10000 }, 1000],
+  ['TG2025',    { type: 'money', amount: 20000 }, 100],
+  ['LUCKY777',  { type: 'money', amount: 25000 }, 50],
   ['BOOST',     { type: 'booster', mult: 2, durationMs: 300000 }, 500],
   ['EPICGIFT',  { type: 'guarantee', rarity: 'epic', count: 1 }, 100],
 ];
