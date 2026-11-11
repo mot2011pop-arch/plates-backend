@@ -1,0 +1,16 @@
+{
+  "name": "plates-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.3.0",
+    "@tma.js/init-data-node": "^1.0.0",
+    "cors": "^2.8.5"
+  },
+  "engines": { "node": ">=20" }
+}
