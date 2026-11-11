@@ -3,20 +3,27 @@ import cors from 'cors';
 import crypto from 'crypto';
 import db from './db.js';
 
+// Токен должен быть в переменных окружения Render!
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'change-me-please';
+
 if (!BOT_TOKEN) {
-  console.error('❌ TELEGRAM_BOT_TOKEN не задан!');
-  process.exit(1);
+  console.error('❌ ОШИБКА: TELEGRAM_BOT_TOKEN не задан в Environment на Render!');
+  console.error('Сервер не сможет проверять игроков. Добавь переменную и перезапусти.');
+  // Мы не завершаем процесс, чтобы ты мог увидеть логи, но игра работать не будет.
 }
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '64kb' }));
 
-// Ручная проверка подписи Telegram (без внешних библиотек)
+// Ручная проверка подписи Telegram
 function authMiddleware(req, res, next) {
   try {
+    if (!BOT_TOKEN) {
+      return res.status(500).json({ error: 'server_misconfigured', message: 'Нет TELEGRAM_BOT_TOKEN на сервере' });
+    }
+
     const raw = req.headers['x-init-data'];
     if (!raw) return res.status(401).json({ error: 'no_init_data' });
 
@@ -34,6 +41,9 @@ function authMiddleware(req, res, next) {
     const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
 
     if (calculatedHash !== hash) {
+      console.log('❌ ОШИБКА ПОДПИСИ!');
+      console.log('Токен (начало):', BOT_TOKEN.substring(0, 10) + '...');
+      console.log('Длина токена:', BOT_TOKEN.length);
       return res.status(401).json({ error: 'invalid_init_data' });
     }
 
@@ -42,6 +52,7 @@ function authMiddleware(req, res, next) {
     req.tgUser = JSON.parse(userStr);
     next();
   } catch (e) {
+    console.error('Auth error:', e);
     return res.status(401).json({ error: 'invalid_init_data' });
   }
 }
@@ -52,7 +63,7 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
-app.get('/', (req, res) => res.json({ ok: true, name: 'plates-backend' }));
+app.get('/', (req, res) => res.json({ ok: true, name: 'plates-backend', token_set: !!BOT_TOKEN }));
 
 app.post('/load', authMiddleware, (req, res) => {
   const userId = req.tgUser.id;
